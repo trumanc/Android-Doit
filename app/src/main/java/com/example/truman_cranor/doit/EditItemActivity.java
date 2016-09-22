@@ -34,7 +34,9 @@ public class EditItemActivity extends AppCompatActivity {
         String oldText = getIntent().getStringExtra(INTENT_EXTRA_TEXT);
 
         EditText etItem = (EditText) findViewById(R.id.etItemText);
-        etItem.setText(oldText);
+        etItem.setText("");
+        // append method places cursor at the end of the text
+        etItem.append(oldText);
     }
 
     public void onSubmit(View btnSubmit) {
