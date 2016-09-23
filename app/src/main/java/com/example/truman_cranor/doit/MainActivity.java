@@ -6,27 +6,29 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Toast;
+
+import com.activeandroid.query.Select;
 
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import static android.R.id.list;
 import static android.icu.lang.UCharacter.GraphemeClusterBreak.L;
 import static com.example.truman_cranor.doit.BuildConfig.DEBUG;
+import static com.example.truman_cranor.doit.R.id.etNewItem;
 
 public class MainActivity extends AppCompatActivity {
-    ArrayList<String> listItems;
-    ArrayAdapter<String> itemsAdapter;
+    ArrayList<Task> listItems;
+    TaskListArrayAdapter itemsAdapter;
     ListView lvItems;
 
-    private final static String ITEM_FILE_NAME = "todo.txt";
     private final static String LOG_TAG = "DoItMain";
 
     private static final int EDIT_ITEM_ACTIVITY_CODE = 1;
@@ -36,11 +38,10 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Inititalize ListView and Adapter instance vars
+        // Initialize ListView and Adapter instance vars
         lvItems = (ListView) findViewById(R.id.lvItems);
         listItems = readItems();
-        itemsAdapter = new ArrayAdapter<String>(this,
-                android.R.layout.simple_list_item_1, listItems);
+        itemsAdapter = new TaskListArrayAdapter(this, listItems);
         lvItems.setAdapter(itemsAdapter);
         setupListViewClickListeners();
     }
@@ -51,9 +52,9 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public boolean onItemLongClick(AdapterView<?> adapter,
                                                    View item, int pos, long id) {
+                        deleteTask(listItems.get(pos));
                         listItems.remove(pos);
                         itemsAdapter.notifyDataSetChanged();
-                        writeItems();
                         return true;
                     }
                 }
@@ -62,14 +63,14 @@ public class MainActivity extends AppCompatActivity {
         lvItems.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int pos, long id) {
-                Toast.makeText(getApplicationContext(), listItems.get(pos), Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), listItems.get(pos).text, Toast.LENGTH_SHORT).show();
 
                 Intent i = new Intent(MainActivity.this, EditItemActivity.class);
-                i.putExtra(EditItemActivity.INTENT_EXTRA_TEXT, listItems.get(pos));
+                i.putExtra(EditItemActivity.INTENT_EXTRA_TEXT, listItems.get(pos).text);
                 i.putExtra(EditItemActivity.INTENT_EXTRA_INDEX, pos);
                 startActivityForResult(i, EDIT_ITEM_ACTIVITY_CODE);
 
-                Toast.makeText(getApplicationContext(), listItems.get(pos), Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), listItems.get(pos).text, Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -93,43 +94,39 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateItem(int pos, String text) {
-        listItems.set(pos, text);
+        listItems.get(pos).text = text;
+        listItems.get(pos).save();
         itemsAdapter.notifyDataSetChanged();
-        writeItems();
     }
 
     public void onAddItem(View btnView) {
         EditText etNewItem = (EditText) findViewById(R.id.etNewItem);
-        String newItemText = etNewItem.getText().toString();
-        itemsAdapter.add(newItemText);
+
+        Task newTask = newTask(etNewItem.getText().toString());
+
+        // Add item the adapter. This automatically adds it to the internal array, and updates
+        itemsAdapter.add(newTask);
         etNewItem.setText("");
-
-        // TODO: Is there a more efficient way to add new items to persistent data?
-        writeItems();
     }
 
-    private ArrayList<String> readItems() {
-        File filesDir = getFilesDir();
-        File todoFile = new File(filesDir, ITEM_FILE_NAME);
-        try {
-            return new ArrayList<String>(FileUtils.readLines(todoFile));
-        } catch (IOException e) {
-            Log.d(LOG_TAG, "Unable to read todo list file.", e);
-            return new ArrayList<>();
-        }
+    private ArrayList<Task> readItems() {
+        List<Task> tasks = new Select()
+                .from(Task.class)
+                .execute();
+        return new ArrayList<Task>(tasks);
     }
 
-    private void writeItems() {
-        File filesDir = getFilesDir();
-        File todoFile = new File(filesDir, ITEM_FILE_NAME);
-        try {
-            FileUtils.writeLines(todoFile, listItems);
-        } catch (IOException e) {
-            Log.d(LOG_TAG, "Unable to write todo list file.", e);
-            if (DEBUG) {
-                // Force a quick crash so the dev can't miss this :)
-                throw new RuntimeException(e);
-            }
-        }
+    private Task newTask(String text) {
+        Task newTask = new Task(text);
+        newTask.save();
+
+        return newTask;
     }
+
+    private void deleteTask(Task toDelete) {
+        toDelete.delete();
+    }
+
 }
+
+
