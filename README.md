@@ -4,7 +4,8 @@
 
 Submitted by: **Truman Cranor**
 
-Time spent: **3** hours spent in total
+Time spent: **3** hours spent in total on base app.
+Many more hours spent on figuring out ExpandableListView and automatic list switching.
 
 ## User Stories
 
@@ -17,7 +18,7 @@ The following **required** functionality is completed:
 The following **optional** features are implemented:
 
 * [X] Persist the todo items [into SQLite](http://guides.codepath.com/android/Persisting-Data-to-the-Device#sqlite) instead of a text file
-* [ ] Improve style of the todo items in the list [using a custom adapter](http://guides.codepath.com/android/Using-an-ArrayAdapter-with-ListView)
+* [X] Improve style of the todo items in the list [using a custom adapter](http://guides.codepath.com/android/Using-an-ArrayAdapter-with-ListView)
 * [ ] Add support for completion due dates for todo items (and display within listview item)
 * [ ] Use a [DialogFragment](http://guides.codepath.com/android/Using-DialogFragment) instead of new Activity for editing items
 * [ ] Add support for selecting the priority of each todo item (and display in listview item)
@@ -25,17 +26,23 @@ The following **optional** features are implemented:
 
 The following **additional** features are implemented:
 
+* [X] Uses an ExpandedListView to group the items into two lists, one for incomplete items and one for compelete items.
+* [X] Moves items between the lists when a checkbox is clicked
+
+The following **unimplemented** features have been identified as areas for more work:
+
+* [ ] Maintains consistent ordering in lists (order on app start is based on order in database, but when items change lists they are added at the end, regardless of original order)
+* [ ] Remembers users preference for which sublists should be collapsed/expanded on app start.
+
 ## Video Walkthrough 
 
 Here's a walkthrough of implemented user stories:
 
-<img src='http://i.imgur.com/NGJG1O2.gif' title='Video Walkthrough' width='' alt='Video Walkthrough' />
+<img src='http://g.recordit.co/4CFWCCBIxw.gif' title='Video Walkthrough' width='' alt='Video Walkthrough' />
 
-GIF created with [LiceCap](http://www.cockos.com/licecap/).
+GIF created with [RecordIt](http://recordit.co/) because LiceCap was horrifyingly buggy.
 
 ## Notes
-
-Licecap has a fun bug where it only captures a black screen if you download it from their site instead of installing via brew.
 
 ## License
 

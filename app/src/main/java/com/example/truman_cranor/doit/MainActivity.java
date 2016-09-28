@@ -7,27 +7,12 @@ import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.EditText;
-import android.widget.ListView;
-import android.widget.Toast;
+import android.widget.ExpandableListView;
 
-import com.activeandroid.query.Select;
-
-import org.apache.commons.io.FileUtils;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import static android.R.id.list;
-import static android.icu.lang.UCharacter.GraphemeClusterBreak.L;
-import static com.example.truman_cranor.doit.BuildConfig.DEBUG;
-import static com.example.truman_cranor.doit.R.id.etNewItem;
 
 public class MainActivity extends AppCompatActivity {
-    ArrayList<Task> listItems;
     TaskListArrayAdapter itemsAdapter;
-    ListView lvItems;
+    ExpandableListView elvItems;
 
     private final static String LOG_TAG = "DoItMain";
 
@@ -39,38 +24,53 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         // Initialize ListView and Adapter instance vars
-        lvItems = (ListView) findViewById(R.id.lvItems);
-        listItems = readItems();
-        itemsAdapter = new TaskListArrayAdapter(this, listItems);
-        lvItems.setAdapter(itemsAdapter);
+        elvItems = (ExpandableListView) findViewById(R.id.elvLists);
+        itemsAdapter = new TaskListArrayAdapter(Task.readItems());
+        elvItems.setAdapter(itemsAdapter);
+
+        // Expand the uncompleted items at app open
+        elvItems.expandGroup(TaskListArrayAdapter.GROUP_NUM_TODO);
         setupListViewClickListeners();
     }
 
     private void setupListViewClickListeners() {
-        lvItems.setOnItemLongClickListener(
+        elvItems.setOnItemLongClickListener(
                 new AdapterView.OnItemLongClickListener() {
                     @Override
                     public boolean onItemLongClick(AdapterView<?> adapter,
                                                    View item, int pos, long id) {
-                        deleteTask(listItems.get(pos));
-                        listItems.remove(pos);
-                        itemsAdapter.notifyDataSetChanged();
-                        return true;
+                        Log.d(LOG_TAG, "Inside long click handler");
+                        if (ExpandableListView.getPackedPositionType(id) ==
+                                ExpandableListView.PACKED_POSITION_TYPE_CHILD) {
+                            int groupPosition = ExpandableListView.getPackedPositionGroup(id);
+                            int childPosition = ExpandableListView.getPackedPositionChild(id);
+
+                            // Deletes from mysql, removes from backing array, and notifies the view
+                            itemsAdapter.deleteTask(groupPosition, childPosition);
+                            return true;
+                        } else if (ExpandableListView.getPackedPositionType(id) ==
+                                ExpandableListView.PACKED_POSITION_TYPE_GROUP) {
+                            Log.d(LOG_TAG, "Ignoring longclick on list group");
+                            return true;
+                        } else {
+                            return false;
+                        }
                     }
                 }
         );
 
-        lvItems.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        elvItems.setOnChildClickListener(new ExpandableListView.OnChildClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int pos, long id) {
-                Toast.makeText(getApplicationContext(), listItems.get(pos).text, Toast.LENGTH_SHORT).show();
-
+            public boolean onChildClick(ExpandableListView parent, View v, int groupPosition, int childPosition, long id) {
                 Intent i = new Intent(MainActivity.this, EditItemActivity.class);
-                i.putExtra(EditItemActivity.INTENT_EXTRA_TEXT, listItems.get(pos).text);
-                i.putExtra(EditItemActivity.INTENT_EXTRA_INDEX, pos);
+                Task item = (Task) itemsAdapter.getChild(groupPosition, childPosition);
+                i.putExtra(EditItemActivity.INTENT_EXTRA_TEXT, item.text);
+                i.putExtra(EditItemActivity.INTENT_EXTRA_COMPLETED, item.completed);
+                i.putExtra(EditItemActivity.INTENT_EXTRA_INDEX, childPosition);
                 startActivityForResult(i, EDIT_ITEM_ACTIVITY_CODE);
 
-                Toast.makeText(getApplicationContext(), listItems.get(pos).text, Toast.LENGTH_SHORT).show();
+                //Toast.makeText(getApplicationContext(), listItems.get(pos).text, Toast.LENGTH_SHORT).show();
+                return true;
             }
         });
     }
@@ -79,8 +79,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == EDIT_ITEM_ACTIVITY_CODE) {
             if (resultCode == EditItemActivity.RESULT_CODE_SUBMITTED) {
+
                 updateItem(data.getExtras().getInt(EditItemActivity.INTENT_EXTRA_INDEX),
-                           data.getExtras().getString(EditItemActivity.INTENT_EXTRA_TEXT));
+                        data.getExtras().getBoolean(EditItemActivity.INTENT_EXTRA_COMPLETED),
+                        data.getExtras().getBoolean(EditItemActivity.INTENT_EXTRA_NEW_COMPLETED),
+                        data.getExtras().getString(EditItemActivity.INTENT_EXTRA_TEXT));
             } else if (resultCode == RESULT_CANCELED) {
                 // Do nothing, since the edit action was cancelled
             } else if (resultCode == EditItemActivity.RESULT_CODE_ERROR) {
@@ -93,38 +96,28 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void updateItem(int pos, String text) {
-        listItems.get(pos).text = text;
-        listItems.get(pos).save();
-        itemsAdapter.notifyDataSetChanged();
+    private void updateItem(int pos, boolean oldCompleted, boolean newCompleted, String text) {
+        int oldGroupNum =
+                oldCompleted ?
+                TaskListArrayAdapter.GROUP_NUM_COMPLETED :
+                TaskListArrayAdapter.GROUP_NUM_TODO;
+        Task edited = (Task) itemsAdapter.getChild(oldGroupNum, pos);
+        edited.updateTask(text, newCompleted);
+
+        if (newCompleted != oldCompleted) {
+            itemsAdapter.changeCompletion(pos, newCompleted);
+        }
+        //listItems.get(pos).text = text;
+        //listItems.get(pos).save();
+        //itemsAdapter.notifyDataSetChanged();
     }
 
     public void onAddItem(View btnView) {
         EditText etNewItem = (EditText) findViewById(R.id.etNewItem);
 
-        Task newTask = newTask(etNewItem.getText().toString());
-
         // Add item the adapter. This automatically adds it to the internal array, and updates
-        itemsAdapter.add(newTask);
+        itemsAdapter.addTask(etNewItem.getText().toString());
         etNewItem.setText("");
-    }
-
-    private ArrayList<Task> readItems() {
-        List<Task> tasks = new Select()
-                .from(Task.class)
-                .execute();
-        return new ArrayList<Task>(tasks);
-    }
-
-    private Task newTask(String text) {
-        Task newTask = new Task(text);
-        newTask.save();
-
-        return newTask;
-    }
-
-    private void deleteTask(Task toDelete) {
-        toDelete.delete();
     }
 
 }
